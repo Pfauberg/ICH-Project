@@ -63,10 +63,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_genre_page(query, context):
     genres = await get_available_genres()
     if genres:
-        all_genres = ", ".join(genres)
+        formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
         txt = (
             "Search by genre & year.\n\n"
-            f"Available genres:\n{all_genres}\n\n"
+            f"Available genres:\n{formatted}\n\n"
             "Send me one of these (e.g. COMEDY)."
         )
     else:
@@ -85,6 +85,7 @@ async def show_genre_page(query, context):
 async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     data = q.data
+
     if data == "go_keyword_start":
         m = await q.edit_message_text(
             "Search by keyword.\n\nSend me a keyword:",
@@ -178,15 +179,30 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data[MODE] = "genre_start"
         else:
             if len(years) == 1:
-                txt = f"Genre '{context.user_data[GENRE]}' found.\nOnly year: {years[0]}.\nSend it."
+                y, cnt = years[0]
+                txt = f"Genre '{context.user_data[GENRE]}' found.\nOnly year: {y} ({cnt} films).\nSend it."
             else:
-                mn, mx = years[0], years[-1]
-                c = (mx - mn + 1) == len(years)
+                mn, cnt_min = years[0]
+                mx, cnt_max = years[-1]
+                distinct_years = [row[0] for row in years]
+                c = (mx - mn + 1) == len(distinct_years)
                 if c and len(years) > 1:
-                    txt = f"Genre '{context.user_data[GENRE]}' found.\nYears range: {mn} - {mx}.\nSend a year."
+                    txt = (
+                        f"Genre '{context.user_data[GENRE]}' found.\n"
+                        f"Years range: {mn}-{mx}.\n"
+                        "Send a year in this range.\n\n"
+                        "Details:\n"
+                    )
                 else:
-                    all_y = ", ".join(str(y) for y in years)
-                    txt = f"Genre '{context.user_data[GENRE]}' found.\nPossible years: {all_y}.\nSend one."
+                    txt = (
+                        f"Genre '{context.user_data[GENRE]}' found.\n"
+                        "Possible years:\n"
+                    )
+                year_parts = []
+                for y, ccount in years:
+                    year_parts.append(f"{y}({ccount})")
+                txt += ", ".join(year_parts)
+                txt += "\nSend one."
             rmk = InlineKeyboardMarkup([
                 [InlineKeyboardButton("Back", callback_data="go_year_back_to_genre")]
             ])
@@ -260,10 +276,11 @@ async def search_by_genre_and_year(genre: str, year: int):
 
 async def get_available_genres():
     sql = """
-    SELECT DISTINCT c.name
+    SELECT c.name, COUNT(f.film_id) as film_count
     FROM category c
     JOIN film_category fc ON c.category_id = fc.category_id
     JOIN film f ON fc.film_id = f.film_id
+    GROUP BY c.name
     ORDER BY c.name
     """
     try:
@@ -272,17 +289,21 @@ async def get_available_genres():
             cursor.execute(sql)
             rows = cursor.fetchall()
         conn.close()
-        return [row["name"] for row in rows]
+        result = []
+        for r in rows:
+            result.append((r["name"], r["film_count"]))
+        return result
     except:
         return []
 
 async def get_years_for_genre(genre: str):
     sql = """
-    SELECT DISTINCT f.release_year
+    SELECT f.release_year AS yr, COUNT(f.film_id) as film_count
     FROM film f
     JOIN film_category fc ON f.film_id = fc.film_id
     JOIN category c ON fc.category_id = c.category_id
     WHERE c.name = %s
+    GROUP BY f.release_year
     ORDER BY f.release_year
     """
     try:
@@ -291,8 +312,10 @@ async def get_years_for_genre(genre: str):
             cursor.execute(sql, (genre,))
             rows = cursor.fetchall()
         conn.close()
-        yrs = [r["release_year"] for r in rows]
-        return sorted(yrs)
+        result = []
+        for r in rows:
+            result.append((r["yr"], r["film_count"]))
+        return result
     except:
         return []
 
