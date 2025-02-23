@@ -1,6 +1,7 @@
 import os
 import pymysql
 import sqlite3
+import math
 import configparser
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -30,6 +31,9 @@ MODE = "mode"
 MSG_ID = "msg_id"
 GENRE = "genre_value"
 YEAR = "year_value"
+SEARCH_RESULTS = "search_results"
+SEARCH_PAGE = "search_page"
+SEARCH_BACK_CALLBACK = "search_back_callback"
 
 rating_map = {
     "G": "0+",
@@ -180,27 +184,29 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[MSG_ID] = m.message_id
         context.user_data[MODE] = None
 
+    elif data == "search_next":
+        context.user_data[SEARCH_PAGE] += 1
+        await display_search_results(update, context)
+    elif data == "search_prev":
+        context.user_data[SEARCH_PAGE] -= 1
+        await display_search_results(update, context)
+
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mid = context.user_data.get(MSG_ID)
     if not mid:
         return
     await update.message.delete()
     mode = context.user_data.get(MODE)
+
     if mode == "keyword_start":
         kw = update.message.text
         films = await search_by_keyword(kw)
-        text_result = format_films(films) or "No results found."
         await insert_query("keyword", kw)
-        await context.bot.edit_message_text(
-            chat_id=update.effective_chat.id,
-            message_id=mid,
-            text=text_result,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_keyword_result_back")]
-            ]),
-            parse_mode="HTML"
-        )
+        context.user_data[SEARCH_RESULTS] = films
+        context.user_data[SEARCH_PAGE] = 0
+        context.user_data[SEARCH_BACK_CALLBACK] = "go_keyword_result_back"
         context.user_data[MODE] = "keyword_result"
+        await display_search_results(update, context)
 
     elif mode == "keyword_result":
         pass
@@ -276,30 +282,61 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data[MODE] = "year_start"
         else:
-            text_result = format_films(films)
             await insert_query("genre_year", f"{g},{y}")
-            rmk = InlineKeyboardMarkup([
-                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_genre_result_back")]
-            ])
-            await context.bot.edit_message_text(
-                chat_id=update.effective_chat.id,
-                message_id=mid,
-                text=text_result,
-                reply_markup=rmk,
-                parse_mode="HTML"
-            )
+            context.user_data[SEARCH_RESULTS] = films
+            context.user_data[SEARCH_PAGE] = 0
+            context.user_data[SEARCH_BACK_CALLBACK] = "go_genre_result_back"
             context.user_data[MODE] = "genre_result"
+            await display_search_results(update, context)
 
     elif mode == "genre_result":
         pass
 
+async def display_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = context.user_data
+    results = user_data.get(SEARCH_RESULTS, [])
+    page = user_data.get(SEARCH_PAGE, 0)
+    back_callback = user_data.get(SEARCH_BACK_CALLBACK, "back_to_main_menu")
+    page_size = 10
+    total = len(results)
+    total_pages = math.ceil(total / page_size) if total > 0 else 1
+
+    start_i = page * page_size
+    end_i = start_i + page_size
+    slice_rows = results[start_i:end_i]
+    text_result = format_films(slice_rows)
+
+    page_info = f"Total found: {total}\nPage {page+1} of {total_pages}\n\n"
+    display_text = page_info + text_result
+
+    buttons = []
+    nav_buttons = []
+
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("◀️", callback_data="search_prev"))
+    if end_i < total:
+        nav_buttons.append(InlineKeyboardButton("▶️", callback_data="search_next"))
+
+    if nav_buttons:
+        buttons.append(nav_buttons)
+
+    buttons.append([InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data=back_callback)])
+
+    mid = user_data.get(MSG_ID)
+    await context.bot.edit_message_text(
+        chat_id=update.effective_chat.id,
+        message_id=mid,
+        text=display_text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="HTML"
+    )
+
 async def search_by_keyword(keyword: str):
     sql = """
-    SELECT film_id, title, release_year, description, rating, imdb_id,
-           length
+    SELECT film_id, title, release_year, description, rating, imdb_id, length
     FROM film
     WHERE title LIKE %s OR description LIKE %s
-    LIMIT 10
+    ORDER BY title
     """
     like_pattern = f"%{keyword}%"
     try:
@@ -320,7 +357,7 @@ async def search_by_genre_and_year(genre: str, year: int):
     JOIN film_category fc ON f.film_id = fc.film_id
     JOIN category c ON fc.category_id = c.category_id
     WHERE c.name = %s AND f.release_year = %s
-    LIMIT 10
+    ORDER BY f.title
     """
     try:
         conn = pymysql.connect(**server_db_config)
@@ -411,11 +448,11 @@ def format_films(rows):
         mpaa_rating = r.get("rating", "Unknown")
         local_rating = rating_map.get(mpaa_rating, "Unknown")
         length = r.get("length") or 0
+        snippet = (desc[:100] + "...") if len(desc) > 100 else desc
         lines.append(
             f"<b>{title}</b> ({local_rating})\n"
-            f"📅 {year}\n"
-            f"⏳ {length} min\n"
-            f"<blockquote>📖 {desc[:100]}...</blockquote>\n"
+            f"📅 {year}  ⏳ {length} min\n"
+            f"📖 {snippet}\n"
             "============================\n"
         )
     return "".join(lines)
