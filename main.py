@@ -363,7 +363,7 @@ async def get_top_queries():
         cur.execute(sql)
         rows = cur.fetchall()
         conn.close()
-        return [{"search_value": r[0], "cnt": r[1]} for r in rows]
+        return [{"search_value": r[0].title(), "cnt": r[1]} for r in rows]
     except:
         return []
 
@@ -372,7 +372,7 @@ async def insert_query(stype: str, sval: str):
     try:
         conn = sqlite3.connect(TOP_DB_PATH)
         cur = conn.cursor()
-        cur.execute(sql, (stype, sval))
+        cur.execute(sql, (stype, sval.lower()))
         conn.commit()
         conn.close()
     except:
