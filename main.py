@@ -1,3 +1,6 @@
+# -------------------------------------------
+# Imports
+# -------------------------------------------
 import os
 import pymysql
 import sqlite3
@@ -13,6 +16,9 @@ from telegram.ext import (
     ContextTypes
 )
 
+# -------------------------------------------
+# Configuration
+# -------------------------------------------
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -27,6 +33,9 @@ server_db_config = {
 TOP_DB_PATH = os.path.join(os.path.dirname(__file__), "top_queries.sqlite")
 TOKEN = config["TELEGRAM"]["TOKEN"]
 
+# -------------------------------------------
+# User data key (saving the status of the user page)
+# -------------------------------------------
 MODE = "mode"
 MSG_ID = "msg_id"
 GENRE = "genre_value"
@@ -35,6 +44,9 @@ SEARCH_RESULTS = "search_results"
 SEARCH_PAGE = "search_page"
 SEARCH_BACK_CALLBACK = "search_back_callback"
 
+# -------------------------------------------
+# MPAA ratings to numeric ratings
+# -------------------------------------------
 rating_map = {
     "G": "0+",
     "PG": "6+",
@@ -43,6 +55,9 @@ rating_map = {
     "NC-17": "18+"
 }
 
+# -------------------------------------------
+# Text constants for bot messages
+# -------------------------------------------
 MAIN_MENU_TEXT = (
     "🎬 Welcome to the <b>S A K I L A</b> Bot! 🎬\n\n"
     "Choose an option below to get started.\n"
@@ -64,6 +79,9 @@ GENRE_MENU_HEADER = (
 
 BACK_BUTTON_TEXT = "⬅️ Back"
 
+# -------------------------------------------
+# Initialize local SQLite database if needed
+# -------------------------------------------
 def init_top_db():
     if not os.path.exists(TOP_DB_PATH):
         conn = sqlite3.connect(TOP_DB_PATH)
@@ -78,6 +96,9 @@ def init_top_db():
         conn.commit()
         conn.close()
 
+# -------------------------------------------
+# /start command
+# -------------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
         [InlineKeyboardButton("🔍 Search by keyword", callback_data="go_keyword_start")],
@@ -101,6 +122,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[MSG_ID] = m.message_id
     context.user_data[MODE] = None
 
+# -------------------------------------------
+# Function to show genre selection page
+# -------------------------------------------
 async def show_genre_page(query, context):
     genres = await get_available_genres()
     formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
@@ -117,6 +141,9 @@ async def show_genre_page(query, context):
     context.user_data[GENRE] = None
     context.user_data[YEAR] = None
 
+# -------------------------------------------
+# Function for button clicks
+# -------------------------------------------
 async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     data = q.data
@@ -191,6 +218,9 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[SEARCH_PAGE] -= 1
         await display_search_results(update, context)
 
+# -------------------------------------------
+# Message handler for user text input
+# -------------------------------------------
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mid = context.user_data.get(MSG_ID)
     if not mid:
@@ -292,6 +322,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif mode == "genre_result":
         pass
 
+# -------------------------------------------
+# Display search results
+# -------------------------------------------
 async def display_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     results = user_data.get(SEARCH_RESULTS, [])
@@ -331,6 +364,9 @@ async def display_search_results(update: Update, context: ContextTypes.DEFAULT_T
         parse_mode="HTML"
     )
 
+# -------------------------------------------
+# Search in database by keyword
+# -------------------------------------------
 async def search_by_keyword(keyword: str):
     sql = """
     SELECT film_id, title, release_year, description, rating, imdb_id, length
@@ -349,6 +385,9 @@ async def search_by_keyword(keyword: str):
     except:
         return []
 
+# -------------------------------------------
+# Search in database by genre and year
+# -------------------------------------------
 async def search_by_genre_and_year(genre: str, year: int):
     sql = """
     SELECT f.film_id, f.title, f.release_year, f.description,
@@ -369,6 +408,9 @@ async def search_by_genre_and_year(genre: str, year: int):
     except:
         return []
 
+# -------------------------------------------
+# Get available genres and their counts
+# -------------------------------------------
 async def get_available_genres():
     sql = """
     SELECT c.name, COUNT(f.film_id) as film_count
@@ -388,6 +430,9 @@ async def get_available_genres():
     except:
         return []
 
+# -------------------------------------------
+# Get possible years for a given genre
+# -------------------------------------------
 async def get_years_for_genre(genre: str):
     sql = """
     SELECT f.release_year AS yr, COUNT(f.film_id) as film_count
@@ -408,6 +453,9 @@ async def get_years_for_genre(genre: str):
     except:
         return []
 
+# -------------------------------------------
+# Get top queries from the local SQLite DB
+# -------------------------------------------
 async def get_top_queries():
     sql = """
     SELECT search_value, COUNT(*) AS cnt
@@ -426,6 +474,9 @@ async def get_top_queries():
     except:
         return []
 
+# -------------------------------------------
+# Insert user query into the local DB
+# -------------------------------------------
 async def insert_query(stype: str, sval: str):
     sql = "INSERT INTO search_results (search_type, search_value) VALUES (?, ?)"
     try:
@@ -437,6 +488,9 @@ async def insert_query(stype: str, sval: str):
     except:
         pass
 
+# -------------------------------------------
+# Format film data for displaying in messages
+# -------------------------------------------
 def format_films(rows):
     if not rows:
         return ""
@@ -457,6 +511,9 @@ def format_films(rows):
         )
     return "".join(lines)
 
+# -------------------------------------------
+# Main function and entry point
+# -------------------------------------------
 def main():
     init_top_db()
     app = ApplicationBuilder().token(TOKEN).build()
