@@ -39,6 +39,27 @@ rating_map = {
     "NC-17": "18+"
 }
 
+MAIN_MENU_TEXT = (
+    "🎬 Welcome to the <b>S A K I L A</b> Bot! 🎬\n\n"
+    "Choose an option below to get started.\n"
+    "Browse by a keyword, pick a genre with a specific year, "
+    "or explore the top queries from other users.\n\n"
+    "Have fun searching! 😎"
+)
+
+KEYWORD_MENU_TEXT = (
+    "🔎 <b>Search by Keyword</b>\n\n"
+    "Type a word or phrase below to find matching films.\n"
+    "For example, you can try <i>love</i>, <i>action</i>, or <i>space</i>."
+)
+
+GENRE_MENU_HEADER = (
+    "🎭 <b>Genre & Year Search</b>\n\n"
+    "Below are the available genres (with the number of films):"
+)
+
+BACK_BUTTON_TEXT = "⬅️ Back"
+
 def init_top_db():
     if not os.path.exists(TOP_DB_PATH):
         conn = sqlite3.connect(TOP_DB_PATH)
@@ -55,13 +76,13 @@ def init_top_db():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
-        [InlineKeyboardButton("Search by keyword", callback_data="go_keyword_start")],
-        [InlineKeyboardButton("Search by genre & year", callback_data="go_genre_start")],
-        [InlineKeyboardButton("Top queries", callback_data="go_top_queries")]
+        [InlineKeyboardButton("🔍 Search by keyword", callback_data="go_keyword_start")],
+        [InlineKeyboardButton("🎭 Search by genre & year", callback_data="go_genre_start")],
+        [InlineKeyboardButton("🏆 Top queries", callback_data="go_top_queries")]
     ]
     if update.message:
         m = await update.message.reply_text(
-            "M E N U",
+            MAIN_MENU_TEXT,
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode="HTML"
         )
@@ -69,7 +90,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         q = update.callback_query
         m = await q.edit_message_text(
-            "M E N U",
+            MAIN_MENU_TEXT,
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode="HTML"
         )
@@ -78,19 +99,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_genre_page(query, context):
     genres = await get_available_genres()
-    if genres:
-        formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
-        txt = (
-            "Search by genre & year.\n\n"
-            f"Available genres:\n{formatted}\n\n"
-            "Send me one of these (e.g. COMEDY)."
-        )
-    else:
-        txt = "Search by genre & year.\n\nNo genres found in server DB."
+    formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
+    txt = f"{GENRE_MENU_HEADER}\n\n{formatted}\n\nSend me one."
     await query.edit_message_text(
         txt,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
+            [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="back_to_main_menu")]
         ]),
         parse_mode="HTML"
     )
@@ -105,9 +119,9 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "go_keyword_start":
         m = await q.edit_message_text(
-            "Search by keyword.\n\nSend me a keyword:",
+            KEYWORD_MENU_TEXT,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="back_to_main_menu")]
             ]),
             parse_mode="HTML"
         )
@@ -116,12 +130,12 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "back_to_main_menu":
         kb = [
-            [InlineKeyboardButton("Search by keyword", callback_data="go_keyword_start")],
-            [InlineKeyboardButton("Search by genre & year", callback_data="go_genre_start")],
-            [InlineKeyboardButton("Top queries", callback_data="go_top_queries")]
+            [InlineKeyboardButton("🔍 Search by keyword", callback_data="go_keyword_start")],
+            [InlineKeyboardButton("🎭 Search by genre & year", callback_data="go_genre_start")],
+            [InlineKeyboardButton("🏆 Top queries", callback_data="go_top_queries")]
         ]
         m = await q.edit_message_text(
-            "M E N U",
+            MAIN_MENU_TEXT,
             reply_markup=InlineKeyboardMarkup(kb),
             parse_mode="HTML"
         )
@@ -130,9 +144,9 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "go_keyword_result_back":
         m = await q.edit_message_text(
-            "Search by keyword.\n\nSend me a keyword:",
+            KEYWORD_MENU_TEXT,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="back_to_main_menu")]
             ]),
             parse_mode="HTML"
         )
@@ -151,11 +165,15 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "go_top_queries":
         r = await get_top_queries()
         lines = [f"{row['search_value']} - used {row['cnt']} times" for row in r]
-        txt = "\n".join(lines) if lines else "No data"
+        txt = "🏆 <b>Top Queries</b>\n\n"
+        if lines:
+            txt += "\n".join(lines)
+        else:
+            txt += "No data"
         m = await q.edit_message_text(
             txt,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="back_to_main_menu")]
             ]),
             parse_mode="HTML"
         )
@@ -178,7 +196,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message_id=mid,
             text=text_result,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="go_keyword_result_back")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_keyword_result_back")]
             ]),
             parse_mode="HTML"
         )
@@ -191,9 +209,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[GENRE] = update.message.text.upper().strip()
         years = await get_years_for_genre(context.user_data[GENRE])
         if not years:
-            txt = f"Genre '{context.user_data[GENRE]}' not found.\nTry another or back."
+            genres = await get_available_genres()
+            formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
+            txt = (
+                f"Genre '{context.user_data[GENRE]}' not found.\n\n"
+                "Available genres:\n"
+                f"{formatted}\n\n"
+                "Send me one."
+            )
             rmk = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="back_to_main_menu")]
             ])
             await context.bot.edit_message_text(
                 chat_id=update.effective_chat.id,
@@ -204,33 +229,15 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data[MODE] = "genre_start"
         else:
-            if len(years) == 1:
-                y, cnt = years[0]
-                txt = f"Genre '{context.user_data[GENRE]}' found.\nOnly year: {y} ({cnt} films).\nSend it."
-            else:
-                mn, cnt_min = years[0]
-                mx, cnt_max = years[-1]
-                distinct_years = [row[0] for row in years]
-                c = (mx - mn + 1) == len(distinct_years)
-                if c and len(years) > 1:
-                    txt = (
-                        f"Genre '{context.user_data[GENRE]}' found.\n"
-                        f"Years range: {mn}-{mx}.\n"
-                        "Send a year in this range.\n\n"
-                        "Details:\n"
-                    )
-                else:
-                    txt = (
-                        f"Genre '{context.user_data[GENRE]}' found.\n"
-                        "Possible years:\n"
-                    )
-                year_parts = []
-                for y, ccount in years:
-                    year_parts.append(f"{y}({ccount})")
-                txt += ", ".join(year_parts)
-                txt += "\nSend one."
+            txt = (
+                f"Genre '{context.user_data[GENRE]}' found!\n\n"
+                "Possible release years:\n"
+            )
+            year_parts = [f"{y}({cnt})" for y, cnt in years]
+            txt += ", ".join(year_parts)
+            txt += "\n\nPlease send one of these years."
             rmk = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Back", callback_data="go_year_back_to_genre")]
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_year_back_to_genre")]
             ])
             await context.bot.edit_message_text(
                 chat_id=update.effective_chat.id,
@@ -248,19 +255,40 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             y = 0
         films = await search_by_genre_and_year(g, y)
-        text_result = format_films(films) or "No results found."
-        await insert_query("genre_year", f"{g},{y}")
-        rmk = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Back", callback_data="go_genre_result_back")]
-        ])
-        await context.bot.edit_message_text(
-            chat_id=update.effective_chat.id,
-            message_id=mid,
-            text=text_result,
-            reply_markup=rmk,
-            parse_mode="HTML"
-        )
-        context.user_data[MODE] = "genre_result"
+        if not films:
+            available_years = await get_years_for_genre(g)
+            parts = [f"{yr}({cnt})" for yr, cnt in available_years]
+            txt = (
+                f"Year '{update.message.text.strip()}' not found for genre '{g}'.\n\n"
+                "Available years:\n"
+                f"{', '.join(parts)}\n\n"
+                "Please send one."
+            )
+            rmk = InlineKeyboardMarkup([
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_year_back_to_genre")]
+            ])
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=mid,
+                text=txt,
+                reply_markup=rmk,
+                parse_mode="HTML"
+            )
+            context.user_data[MODE] = "year_start"
+        else:
+            text_result = format_films(films)
+            await insert_query("genre_year", f"{g},{y}")
+            rmk = InlineKeyboardMarkup([
+                [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_genre_result_back")]
+            ])
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=mid,
+                text=text_result,
+                reply_markup=rmk,
+                parse_mode="HTML"
+            )
+            context.user_data[MODE] = "genre_result"
 
     elif mode == "genre_result":
         pass
@@ -319,10 +347,7 @@ async def get_available_genres():
             cursor.execute(sql)
             rows = cursor.fetchall()
         conn.close()
-        result = []
-        for r in rows:
-            result.append((r["name"], r["film_count"]))
-        return result
+        return [(r["name"], r["film_count"]) for r in rows]
     except:
         return []
 
@@ -342,10 +367,7 @@ async def get_years_for_genre(genre: str):
             cursor.execute(sql, (genre,))
             rows = cursor.fetchall()
         conn.close()
-        result = []
-        for r in rows:
-            result.append((r["yr"], r["film_count"]))
-        return result
+        return [(r["yr"], r["film_count"]) for r in rows]
     except:
         return []
 
