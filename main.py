@@ -31,6 +31,14 @@ MSG_ID = "msg_id"
 GENRE = "genre_value"
 YEAR = "year_value"
 
+rating_map = {
+    "G": "0+",
+    "PG": "6+",
+    "PG-13": "12+",
+    "R": "16+",
+    "NC-17": "18+"
+}
+
 def init_top_db():
     if not os.path.exists(TOP_DB_PATH):
         conn = sqlite3.connect(TOP_DB_PATH)
@@ -52,11 +60,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Top queries", callback_data="go_top_queries")]
     ]
     if update.message:
-        m = await update.message.reply_text("M E N U", reply_markup=InlineKeyboardMarkup(kb))
+        m = await update.message.reply_text(
+            "M E N U",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="HTML"
+        )
         context.user_data[MSG_ID] = m.message_id
     else:
         q = update.callback_query
-        m = await q.edit_message_text("M E N U", reply_markup=InlineKeyboardMarkup(kb))
+        m = await q.edit_message_text(
+            "M E N U",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="HTML"
+        )
         context.user_data[MSG_ID] = m.message_id
     context.user_data[MODE] = None
 
@@ -71,13 +87,14 @@ async def show_genre_page(query, context):
         )
     else:
         txt = "Search by genre & year.\n\nNo genres found in server DB."
-    m = await query.edit_message_text(
+    await query.edit_message_text(
         txt,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
-        ])
+        ]),
+        parse_mode="HTML"
     )
-    context.user_data[MSG_ID] = m.message_id
+    context.user_data[MSG_ID] = query.message.message_id
     context.user_data[MODE] = "genre_start"
     context.user_data[GENRE] = None
     context.user_data[YEAR] = None
@@ -91,7 +108,8 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Search by keyword.\n\nSend me a keyword:",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
-            ])
+            ]),
+            parse_mode="HTML"
         )
         context.user_data[MSG_ID] = m.message_id
         context.user_data[MODE] = "keyword_start"
@@ -102,7 +120,11 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("Search by genre & year", callback_data="go_genre_start")],
             [InlineKeyboardButton("Top queries", callback_data="go_top_queries")]
         ]
-        m = await q.edit_message_text("M E N U", reply_markup=InlineKeyboardMarkup(kb))
+        m = await q.edit_message_text(
+            "M E N U",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="HTML"
+        )
         context.user_data[MSG_ID] = m.message_id
         context.user_data.clear()
 
@@ -111,7 +133,8 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Search by keyword.\n\nSend me a keyword:",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
-            ])
+            ]),
+            parse_mode="HTML"
         )
         context.user_data[MSG_ID] = m.message_id
         context.user_data[MODE] = "keyword_start"
@@ -133,7 +156,8 @@ async def callback_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             txt,
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Back", callback_data="back_to_main_menu")]
-            ])
+            ]),
+            parse_mode="HTML"
         )
         context.user_data[MSG_ID] = m.message_id
         context.user_data[MODE] = None
@@ -149,13 +173,14 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         films = await search_by_keyword(kw)
         text_result = format_films(films) or "No results found."
         await insert_query("keyword", kw)
-        m = await context.bot.edit_message_text(
+        await context.bot.edit_message_text(
             chat_id=update.effective_chat.id,
             message_id=mid,
             text=text_result,
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("Back", callback_data="go_keyword_result_back")]
-            ])
+            ]),
+            parse_mode="HTML"
         )
         context.user_data[MODE] = "keyword_result"
 
@@ -174,7 +199,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_chat.id,
                 message_id=mid,
                 text=txt,
-                reply_markup=rmk
+                reply_markup=rmk,
+                parse_mode="HTML"
             )
             context.user_data[MODE] = "genre_start"
         else:
@@ -210,7 +236,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_chat.id,
                 message_id=mid,
                 text=txt,
-                reply_markup=rmk
+                reply_markup=rmk,
+                parse_mode="HTML"
             )
             context.user_data[MODE] = "year_start"
 
@@ -221,7 +248,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             y = 0
         films = await search_by_genre_and_year(g, y)
-        txt = format_films(films) or "No results found."
+        text_result = format_films(films) or "No results found."
         await insert_query("genre_year", f"{g},{y}")
         rmk = InlineKeyboardMarkup([
             [InlineKeyboardButton("Back", callback_data="go_genre_result_back")]
@@ -229,8 +256,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.edit_message_text(
             chat_id=update.effective_chat.id,
             message_id=mid,
-            text=txt,
-            reply_markup=rmk
+            text=text_result,
+            reply_markup=rmk,
+            parse_mode="HTML"
         )
         context.user_data[MODE] = "genre_result"
 
@@ -239,7 +267,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def search_by_keyword(keyword: str):
     sql = """
-    SELECT film_id, title, release_year, description
+    SELECT film_id, title, release_year, description, rating, imdb_id,
+           length
     FROM film
     WHERE title LIKE %s OR description LIKE %s
     LIMIT 10
@@ -257,7 +286,8 @@ async def search_by_keyword(keyword: str):
 
 async def search_by_genre_and_year(genre: str, year: int):
     sql = """
-    SELECT f.film_id, f.title, f.release_year, f.description
+    SELECT f.film_id, f.title, f.release_year, f.description,
+           f.rating, f.imdb_id, f.length
     FROM film f
     JOIN film_category fc ON f.film_id = fc.film_id
     JOIN category c ON fc.category_id = c.category_id
@@ -356,8 +386,17 @@ def format_films(rows):
         title = r["title"]
         year = r["release_year"]
         desc = r["description"] or ""
-        lines.append(f"Title: {title}\nYear: {year}\nDescription: {desc[:100]}...\n---")
-    return "\n".join(lines)
+        mpaa_rating = r.get("rating", "Unknown")
+        local_rating = rating_map.get(mpaa_rating, "Unknown")
+        length = r.get("length") or 0
+        lines.append(
+            f"<b>{title}</b> ({local_rating})\n"
+            f"📅 {year}\n"
+            f"⏳ {length} min\n"
+            f"<blockquote>📖 {desc[:100]}...</blockquote>\n"
+            "============================\n"
+        )
+    return "".join(lines)
 
 def main():
     init_top_db()
