@@ -361,15 +361,12 @@ async def display_search_results(update: Update, context: ContextTypes.DEFAULT_T
 
     buttons = []
     nav_buttons = []
-
     if page > 0:
         nav_buttons.append(InlineKeyboardButton("◀️", callback_data="search_prev"))
     if end_i < total:
         nav_buttons.append(InlineKeyboardButton("▶️", callback_data="search_next"))
-
     if nav_buttons:
         buttons.append(nav_buttons)
-
     buttons.append([InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data=back_callback)])
 
     mid = user_data.get(MSG_ID)
@@ -386,10 +383,30 @@ async def display_search_results(update: Update, context: ContextTypes.DEFAULT_T
 # -------------------------------------------
 async def search_by_keyword(keyword: str):
     sql = """
-    SELECT film_id, title, release_year, description, rating, imdb_id, length
-    FROM film
-    WHERE title LIKE %s OR description LIKE %s
-    ORDER BY title
+    SELECT 
+        f.film_id,
+        f.title,
+        f.release_year,
+        f.description,
+        f.rating,
+        f.imdb_id,
+        f.length,
+        GROUP_CONCAT(
+            CONCAT(
+                UCASE(LEFT(a.first_name, 1)),
+                LCASE(SUBSTRING(a.first_name, 2)),
+                ' ',
+                UCASE(LEFT(a.last_name, 1)),
+                LCASE(SUBSTRING(a.last_name, 2))
+            )
+            SEPARATOR ', '
+        ) AS actors
+    FROM film f
+    LEFT JOIN film_actor fa ON f.film_id = fa.film_id
+    LEFT JOIN actor a ON fa.actor_id = a.actor_id
+    WHERE f.title LIKE %s OR f.description LIKE %s
+    GROUP BY f.film_id
+    ORDER BY f.title
     """
     like_pattern = f"%{keyword}%"
     try:
@@ -407,12 +424,31 @@ async def search_by_keyword(keyword: str):
 # -------------------------------------------
 async def search_by_genre_and_year(genre: str, year: int):
     sql = """
-    SELECT f.film_id, f.title, f.release_year, f.description,
-           f.rating, f.imdb_id, f.length
+    SELECT 
+        f.film_id,
+        f.title,
+        f.release_year,
+        f.description,
+        f.rating,
+        f.imdb_id,
+        f.length,
+        GROUP_CONCAT(
+            CONCAT(
+                UCASE(LEFT(a.first_name, 1)),
+                LCASE(SUBSTRING(a.first_name, 2)),
+                ' ',
+                UCASE(LEFT(a.last_name, 1)),
+                LCASE(SUBSTRING(a.last_name, 2))
+            )
+            SEPARATOR ', '
+        ) AS actors
     FROM film f
     JOIN film_category fc ON f.film_id = fc.film_id
     JOIN category c ON fc.category_id = c.category_id
+    LEFT JOIN film_actor fa ON f.film_id = fa.film_id
+    LEFT JOIN actor a ON fa.actor_id = a.actor_id
     WHERE c.name = %s AND f.release_year = %s
+    GROUP BY f.film_id
     ORDER BY f.title
     """
     try:
@@ -520,9 +556,11 @@ def format_films(rows):
         local_rating = rating_map.get(mpaa_rating, "Unknown")
         length = r.get("length") or 0
         snippet = (desc[:100] + "...") if len(desc) > 100 else desc
+        actors = r.get("actors") or "No actors"
         lines.append(
             f"<code>{title}</code> ({local_rating})\n"
             f"📅 {year}  ⏳ {length} min\n"
+            f"👥 {actors}\n"
             f"📖 {snippet}\n"
             "============================\n"
         )
