@@ -97,6 +97,23 @@ def init_top_db():
         conn.close()
 
 # -------------------------------------------
+# Function for formatting the list of years in two columns
+# -------------------------------------------
+def format_years_two_columns(years):
+    lines = []
+    for i in range(0, len(years), 2):
+        left_y, left_cnt = years[i]
+        left_text = f"<code>{left_y}</code> ({left_cnt})"
+        if i + 1 < len(years):
+            right_y, right_cnt = years[i + 1]
+            right_text = f"<code>{right_y}</code> ({right_cnt})"
+            line = f"{left_text}    {right_text}"
+        else:
+            line = left_text
+        lines.append(line)
+    return "\n".join(lines)
+
+# -------------------------------------------
 # /start command
 # -------------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -127,7 +144,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------------------------------------------
 async def show_genre_page(query, context):
     genres = await get_available_genres()
-    formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
+    formatted = "\n".join(f"<code>{g}</code> ({cnt})" for g, cnt in genres)
     txt = f"{GENRE_MENU_HEADER}\n\n{formatted}\n\nSend me one."
     await query.edit_message_text(
         txt,
@@ -246,7 +263,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         years = await get_years_for_genre(context.user_data[GENRE])
         if not years:
             genres = await get_available_genres()
-            formatted = ", ".join(f"{g} ({cnt})" for g, cnt in genres)
+            formatted = "\n".join(f"<code>{g}</code> ({cnt})" for g, cnt in genres)
             txt = (
                 f"Genre '{context.user_data[GENRE]}' not found.\n\n"
                 "Available genres:\n"
@@ -265,13 +282,13 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             context.user_data[MODE] = "genre_start"
         else:
+            year_parts = format_years_two_columns(years)
             txt = (
                 f"Genre '{context.user_data[GENRE]}' found!\n\n"
                 "Possible release years:\n"
+                f"{year_parts}\n\n"
+                "Please send one of these years."
             )
-            year_parts = [f"{y}({cnt})" for y, cnt in years]
-            txt += ", ".join(year_parts)
-            txt += "\n\nPlease send one of these years."
             rmk = InlineKeyboardMarkup([
                 [InlineKeyboardButton(BACK_BUTTON_TEXT, callback_data="go_year_back_to_genre")]
             ])
@@ -293,11 +310,11 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         films = await search_by_genre_and_year(g, y)
         if not films:
             available_years = await get_years_for_genre(g)
-            parts = [f"{yr}({cnt})" for yr, cnt in available_years]
+            parts = format_years_two_columns(available_years)
             txt = (
                 f"Year '{update.message.text.strip()}' not found for genre '{g}'.\n\n"
                 "Available years:\n"
-                f"{', '.join(parts)}\n\n"
+                f"{parts}\n\n"
                 "Please send one."
             )
             rmk = InlineKeyboardMarkup([
@@ -504,7 +521,7 @@ def format_films(rows):
         length = r.get("length") or 0
         snippet = (desc[:100] + "...") if len(desc) > 100 else desc
         lines.append(
-            f"<b>{title}</b> ({local_rating})\n"
+            f"<code>{title}</code> ({local_rating})\n"
             f"📅 {year}  ⏳ {length} min\n"
             f"📖 {snippet}\n"
             "============================\n"
