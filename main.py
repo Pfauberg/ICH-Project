@@ -389,7 +389,6 @@ async def search_by_keyword(keyword: str):
         f.release_year,
         f.description,
         f.rating,
-        f.imdb_id,
         f.length,
         GROUP_CONCAT(
             CONCAT(
@@ -430,7 +429,6 @@ async def search_by_genre_and_year(genre: str, year: int):
         f.release_year,
         f.description,
         f.rating,
-        f.imdb_id,
         f.length,
         GROUP_CONCAT(
             CONCAT(
